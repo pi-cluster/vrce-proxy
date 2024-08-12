@@ -1,34 +1,39 @@
-let isProxyEnabled = false;
+let selectedProxy: string | null = null;
+let exceptionSites: string[] = [];
 
 chrome.runtime.onInstalled.addListener(() => {
-  resetProxy();
+  chrome.storage.sync.get("selectedProxy", (result) => {
+    selectedProxy = result.selectedProxy || null;
+    resetProxy();
+  });
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === "TOGGLE_PROXY") {
-    isProxyEnabled = !isProxyEnabled;
+  if (message.type === "SET_PROXY") {
+    selectedProxy = message.proxy;
     resetProxy();
-    sendResponse({ isProxyEnabled });
+    sendResponse({ selectedProxy });
   }
 });
 
 function resetProxy() {
-  if (isProxyEnabled) {
+  if (selectedProxy) {
+    const url = new URL(selectedProxy);
     const proxyConfig = {
       mode: "fixed_servers",
       rules: {
         singleProxy: {
-          scheme: "http",
-          host: "37.9.35.22",
-          port: 3128
+          scheme: url.protocol.replace(":", ""),
+          host: url.hostname,
+          port: parseInt(url.port),
         },
-        bypassList: ["localhost"]
-      }
+        bypassList: exceptionSites,
+      },
     };
     chrome.proxy.settings.set(
       { value: proxyConfig, scope: "regular" },
       () => {
-        console.log("Proxy enabled");
+        console.log("Proxy set to:", selectedProxy);
       }
     );
   } else {
